@@ -1,28 +1,34 @@
 #!/usr/bin/env python3
-import os
-
 import aws_cdk as cdk
-
-from cdk_website_on_ec2.cdk_website_on_ec2_stack import CdkWebsiteOnEc2Stack
-
+from website_network_stack import WebsiteNetworkStack
+from website_server_stack import WebsiteServerStack
 
 app = cdk.App()
-CdkWebsiteOnEc2Stack(app, "CdkWebsiteOnEc2Stack",
-    # If you don't specify 'env', this stack will be environment-agnostic.
-    # Account/Region-dependent features and context lookups will not work,
-    # but a single synthesized template can be deployed anywhere.
 
-    # Uncomment the next line to specialize this stack for the AWS Account
-    # and Region that are implied by the current CLI configuration.
-
-    #env=cdk.Environment(account=os.getenv('CDK_DEFAULT_ACCOUNT'), region=os.getenv('CDK_DEFAULT_REGION')),
-
-    # Uncomment the next line if you know exactly what Account and Region you
-    # want to deploy the stack to. */
-
-    #env=cdk.Environment(account='123456789012', region='us-east-1'),
-
-    # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
+# Network Stack
+network_stack = WebsiteNetworkStack(
+    app, "WebsiteNetworkStack",
+    env=cdk.Environment(
+        account="YOUR_ACCOUNT_ID",  # Replace with your AWS account ID
+        region="us-east-1"  # Change region as needed
     )
+)
+
+# Server Stack - depends on network stack
+server_stack = WebsiteServerStack(
+    app, "WebsiteServerStack",
+    vpc=network_stack.vpc,
+    public_subnets=network_stack.public_subnets,
+    private_subnets=network_stack.private_subnets,
+    web_sg=network_stack.web_sg,
+    rds_sg=network_stack.rds_sg,
+    env=cdk.Environment(
+        account="YOUR_ACCOUNT_ID",  # Replace with your AWS account ID
+        region="us-east-1"  # Change region as needed
+    )
+)
+
+# Add dependency
+server_stack.add_dependency(network_stack)
 
 app.synth()
