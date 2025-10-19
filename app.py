@@ -1,31 +1,28 @@
 #!/usr/bin/env python3
+import os
 import aws_cdk as cdk
-from website_network_stack import WebsiteNetworkStack
-from website_server_stack import WebsiteServerStack
+from cdk_website_on_ec2.network_stack import NetworkStack
+from cdk_website_on_ec2.server_stack import ServerStack
 
 app = cdk.App()
 
-# Network Stack
-network_stack = WebsiteNetworkStack(
-    app, "WebsiteNetworkStack",
-    env=cdk.Environment(
-        account="YOUR_ACCOUNT_ID",  # Replace with your AWS account ID
-        region="us-east-1"  # Change region as needed
-    )
+env = cdk.Environment(
+    account=os.getenv("CDK_DEFAULT_ACCOUNT"),
+    region=os.getenv("CDK_DEFAULT_REGION"),
 )
 
-# Server Stack - depends on network stack
-server_stack = WebsiteServerStack(
-    app, "WebsiteServerStack",
+# Network Stack
+network_stack = NetworkStack(app, "NetworkStack", env=env)
+
+# Server Stack
+server_stack = ServerStack(
+    app, "ServerStack",
     vpc=network_stack.vpc,
     public_subnets=network_stack.public_subnets,
     private_subnets=network_stack.private_subnets,
     web_sg=network_stack.web_sg,
     rds_sg=network_stack.rds_sg,
-    env=cdk.Environment(
-        account="YOUR_ACCOUNT_ID",  # Replace with your AWS account ID
-        region="us-east-1"  # Change region as needed
-    )
+    env=env
 )
 
 # Add dependency
