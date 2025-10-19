@@ -1,62 +1,44 @@
 from aws_cdk import (
-    Stack,
     aws_ec2 as ec2,
     aws_rds as rds,
+    core
 )
-from constructs import Construct
 
-class ServerStack(Stack):
-    def __init__(self, scope: Construct, id: str, vpc, **kwargs):
+class ServerStack(core.Stack):
+
+    def __init__(self, scope: core.Construct, id: str,
+                 vpc,
+                 public_subnets,
+                 private_subnets,
+                 web_sg,
+                 rds_sg,
+                 **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
-        # Web Server Security Group
-        web_sg = ec2.SecurityGroup(
-            self, "WebServerSG",
-            vpc=vpc,
-            allow_all_outbound=True,
-            description="Allow HTTP inbound"
-        )
-        web_sg.add_ingress_rule(
-            ec2.Peer.any_ipv4(), ec2.Port.tcp(80), "Allow HTTP from anywhere"
-        )
-
-        # RDS Security Group
-        db_sg = ec2.SecurityGroup(
-            self, "DBSG",
-            vpc=vpc,
-            allow_all_outbound=True,
-            description="Allow MySQL from web servers"
-        )
-        db_sg.add_ingress_rule(
-            web_sg, ec2.Port.tcp(3306), "Allow MySQL from WebServerSG"
-        )
-
-        # EC2 Instances (one in each public subnet)
-        for i, subnet in enumerate(vpc.select_subnets(subnet_type=ec2.SubnetType.PUBLIC).subnets):
+        # Launch one EC2 web server in each public subnet
+        for i, subnet in enumerate(public_subnets):
             ec2.Instance(
                 self, f"WebServer{i+1}",
-                instance_type=ec2.InstanceType("t3.micro"),
-                machine_image=ec2.MachineImage.latest_amazon_linux2023(),
+                instance_type=ec2.InstanceType("t2.micro"),
+                machine_image=ec2.AmazonLinuxImage(),
                 vpc=vpc,
                 vpc_subnets=ec2.SubnetSelection(subnets=[subnet]),
-                security_group=web_sg,
-                key_name="my-keypair"  # replace with your existing EC2 key pair
+                security_group=web_sg
             )
 
-        # RDS MySQL Instance
+        # Create RDS MySQL instance in private subnets
         rds.DatabaseInstance(
             self, "MySQLInstance",
             engine=rds.DatabaseInstanceEngine.mysql(
-                version=rds.MysqlEngineVersion.VER_8_0_36
+                version=rds.MysqlEngineVersion.VER_8_0_33
             ),
+            instance_type=ec2.InstanceType("t2.micro"),
             vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
-            security_groups=[db_sg],
-            instance_type=ec2.InstanceType("t3.micro"),
+            vpc_subnets=ec2.SubnetSelection(subnets=private_subnets),
+            security_groups=[rds_sg],
             allocated_storage=20,
-            multi_az=True,
-            deletion_protection=False,
+            multi_az=False,
             publicly_accessible=False,
-            credentials=rds.Credentials.from_generated_secret("admin"),
-            database_name="WebAppDB"
+            database_name="WebsiteDB",
+            removal_policy=core.RemovalPolicy.DESTROY
         )
